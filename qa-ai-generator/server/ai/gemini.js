@@ -39,8 +39,8 @@ Include all categories:
 - Negative scenarios
 - Validation checks
 - Edge cases
-Create 2 test cases for each category, 8 total.
-Use sequential TC_ID values from TC_001 to TC_008.
+Create only required test cases don't give too many
+Use sequential TC_ID values from TC_001, TC_002 like this 
 Prefer project-specific terminology, validations, workflows, and constraints found in the uploaded knowledge context.
 `;
 }

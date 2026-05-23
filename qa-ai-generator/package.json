@@ -1,0 +1,35 @@
+{
+  "name": "qa-ai-generator",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.106.1",
+    "axios": "^1.16.1",
+    "jspdf": "^4.2.1",
+    "mammoth": "^1.12.0",
+    "multer": "^2.1.1",
+    "pdf-parse": "^2.4.5",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-dropzone": "^15.0.0",
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^5.1.1",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vite": "^7.2.7"
+  }
+}

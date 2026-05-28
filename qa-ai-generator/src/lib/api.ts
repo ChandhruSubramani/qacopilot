@@ -10,7 +10,7 @@ export type KnowledgeFile = {
   file_type: string;
   upload_date: string;
   source_type: "upload" | "sharepoint";
-  status: "processing" | "ready" | "failed";
+  status: "processing" | "needs_chunking" | "ready" | "failed";
   chunk_count?: number;
 };
 

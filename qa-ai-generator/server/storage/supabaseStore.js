@@ -18,7 +18,9 @@ export function createSupabaseKnowledgeStore({ url, serviceRoleKey }) {
           file_name: file.file_name,
           file_type: file.file_type,
           source_type: file.source_type,
-          status: file.status ?? "processing",
+          status: file.status ?? "needs_chunking",
+          extracted_text: file.extracted_text ?? "",
+          page_count: file.page_count ?? null,
         })
         .select()
         .single();
@@ -39,7 +41,14 @@ export function createSupabaseKnowledgeStore({ url, serviceRoleKey }) {
       return data;
     },
 
-    async insertChunks(fileId, chunks) {
+    async replaceChunks(fileId, chunks) {
+      const deleteExisting = await supabase
+        .from("knowledge_chunks")
+        .delete()
+        .eq("file_id", fileId);
+
+      if (deleteExisting.error) throw deleteExisting.error;
+
       const rows = chunks.map((chunk) => ({
         file_id: fileId,
         chunk_text: chunk.chunk_text,
@@ -61,10 +70,25 @@ export function createSupabaseKnowledgeStore({ url, serviceRoleKey }) {
       return data;
     },
 
+    async insertChunks(fileId, chunks) {
+      return this.replaceChunks(fileId, chunks);
+    },
+
+    async listChunkableFiles() {
+      const { data, error } = await supabase
+        .from("knowledge_files")
+        .select("id, extracted_text, page_count, status")
+        .neq("status", "failed");
+
+      if (error) throw error;
+
+      return data.filter((file) => file.extracted_text);
+    },
+
     async listFiles(search = "") {
       let query = supabase
         .from("knowledge_files")
-        .select("*")
+        .select("id, user_id, file_name, file_type, upload_date, source_type, status, chunk_count, created_at")
         .order("upload_date", { ascending: false });
 
       if (search.trim()) {

@@ -6,6 +6,11 @@ import {
 } from "./parsers.js";
 
 export function createKnowledgeService(store, env = {}) {
+  function withoutExtractedText(file) {
+    const { extracted_text, ...publicFile } = file;
+    return publicFile;
+  }
+
   async function saveExtractedKnowledge({
     fileName,
     fileType,
@@ -13,29 +18,25 @@ export function createKnowledgeService(store, env = {}) {
     text,
     pageCount,
   }) {
+    if (!text.trim()) {
+      throw new Error(`No readable text found in ${fileName}`);
+    }
+
     const file = await store.createFile({
       user_id: env.DEFAULT_USER_ID ?? "local-user",
       file_name: fileName,
       file_type: fileType,
       source_type: sourceType,
-      status: "processing",
+      status: "needs_chunking",
+      extracted_text: text,
+      page_count: pageCount,
     });
-    const chunks = chunkText(text, { pageNumber: pageCount ? 1 : null });
 
-    if (!chunks.length) {
-      await store.updateFile(file.id, {
-        status: "failed",
-        chunk_count: 0,
-      });
-      throw new Error(`No readable text found in ${fileName}`);
-    }
-
-    await store.insertChunks(file.id, chunks);
-    return {
+    return withoutExtractedText({
       ...file,
-      status: "ready",
-      chunk_count: chunks.length,
-    };
+      status: "needs_chunking",
+      chunk_count: 0,
+    });
   }
 
   return {
@@ -91,6 +92,33 @@ export function createKnowledgeService(store, env = {}) {
 
     deleteFile(id) {
       return store.deleteFile(id);
+    },
+
+    async refreshChunks() {
+      const files = await store.listChunkableFiles();
+      let chunkCount = 0;
+
+      for (const file of files) {
+        const chunks = chunkText(file.extracted_text, {
+          pageNumber: file.page_count ? 1 : null,
+        });
+
+        if (!chunks.length) {
+          await store.updateFile(file.id, {
+            status: "failed",
+            chunk_count: 0,
+          });
+          continue;
+        }
+
+        await store.replaceChunks(file.id, chunks);
+        chunkCount += chunks.length;
+      }
+
+      return {
+        fileCount: files.length,
+        chunkCount,
+      };
     },
 
     searchChunks(query, limit) {

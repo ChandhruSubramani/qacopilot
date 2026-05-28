@@ -50,8 +50,10 @@ export function createLocalKnowledgeStore() {
         file_type: file.file_type,
         upload_date: now,
         source_type: file.source_type,
-        status: file.status ?? "processing",
+        status: file.status ?? "needs_chunking",
         chunk_count: 0,
+        extracted_text: file.extracted_text ?? "",
+        page_count: file.page_count ?? null,
         created_at: now,
       };
 
@@ -69,7 +71,7 @@ export function createLocalKnowledgeStore() {
       return state.knowledge_files.find((file) => file.id === id);
     },
 
-    async insertChunks(fileId, chunks) {
+    async replaceChunks(fileId, chunks) {
       const state = await readStore();
       const records = chunks.map((chunk) => ({
         id: createId(),
@@ -80,6 +82,9 @@ export function createLocalKnowledgeStore() {
         created_at: new Date().toISOString(),
       }));
 
+      state.knowledge_chunks = state.knowledge_chunks.filter(
+        (chunk) => chunk.file_id !== fileId,
+      );
       state.knowledge_chunks.push(...records);
       state.knowledge_files = state.knowledge_files.map((file) =>
         file.id === fileId
@@ -90,17 +95,31 @@ export function createLocalKnowledgeStore() {
       return records;
     },
 
+    async insertChunks(fileId, chunks) {
+      return this.replaceChunks(fileId, chunks);
+    },
+
+    async listChunkableFiles() {
+      const state = await readStore();
+
+      return state.knowledge_files.filter(
+        (file) => file.extracted_text && file.status !== "failed",
+      );
+    },
+
     async listFiles(search = "") {
       const state = await readStore();
       const query = search.trim().toLowerCase();
 
-      return state.knowledge_files.filter((file) => {
+      return state.knowledge_files
+        .filter((file) => {
         if (!query) return true;
 
         return [file.file_name, file.file_type, file.source_type, file.status]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(query));
-      });
+        })
+        .map(({ extracted_text, ...file }) => file);
     },
 
     async deleteFile(id) {

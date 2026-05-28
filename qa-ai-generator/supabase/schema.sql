@@ -14,8 +14,10 @@ create table if not exists knowledge_files (
   file_type text not null,
   upload_date timestamptz not null default now(),
   source_type text not null check (source_type in ('upload', 'sharepoint')),
-  status text not null check (status in ('processing', 'ready', 'failed')),
+  status text not null check (status in ('processing', 'needs_chunking', 'ready', 'failed')),
   chunk_count integer not null default 0,
+  extracted_text text,
+  page_count integer,
   created_at timestamptz not null default now()
 );
 

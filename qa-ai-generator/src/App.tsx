@@ -17,13 +17,55 @@ const categoryStyles: Record<TestCaseCategory, string> = {
   "Edge cases": "bg-amber-50 text-amber-700 ring-amber-100",
 };
 
-const exportColumns = [
-  "TC_ID",
-  "Category",
-  "Summary",
-  "Test description",
-  "Test Steps",
-  "Expected",
+const testCaseColumns = [
+  {
+    key: "tcId",
+    label: "TC_ID",
+    widthClass: "w-24",
+    exportWidth: 12,
+    pdfWidth: 58,
+    value: (testCase: TestCase) => testCase.tcId,
+  },
+  {
+    key: "category",
+    label: "Category",
+    widthClass: "w-32",
+    exportWidth: 18,
+    pdfWidth: 76,
+    value: (testCase: TestCase) => testCase.category,
+  },
+  {
+    key: "summary",
+    label: "Summary",
+    widthClass: "w-56",
+    exportWidth: 34,
+    pdfWidth: 124,
+    value: (testCase: TestCase) => testCase.summary,
+  },
+  {
+    key: "testDescription",
+    label: "Test description",
+    widthClass: "w-72",
+    exportWidth: 48,
+    pdfWidth: 168,
+    value: (testCase: TestCase) => testCase.testDescription,
+  },
+  {
+    key: "testSteps",
+    label: "Test Steps",
+    widthClass: "w-80",
+    exportWidth: 64,
+    pdfWidth: 210,
+    value: (testCase: TestCase) => formatSteps(testCase.testSteps),
+  },
+  {
+    key: "expected",
+    label: "Expected",
+    widthClass: "w-72",
+    exportWidth: 48,
+    pdfWidth: 168,
+    value: (testCase: TestCase) => testCase.expected,
+  },
 ] as const;
 
 function formatSteps(steps: string[]) {
@@ -31,14 +73,11 @@ function formatSteps(steps: string[]) {
 }
 
 function buildExportRows(testCases: TestCase[]) {
-  return testCases.map((testCase) => ({
-    TC_ID: testCase.tcId,
-    Category: testCase.category,
-    Summary: testCase.summary,
-    "Test description": testCase.testDescription,
-    "Test Steps": formatSteps(testCase.testSteps),
-    Expected: testCase.expected,
-  }));
+  return testCases.map((testCase) =>
+    Object.fromEntries(
+      testCaseColumns.map((column) => [column.label, column.value(testCase)]),
+    ),
+  );
 }
 
 function getExportFileName(extension: "xlsx" | "pdf") {
@@ -89,7 +128,7 @@ export default function App() {
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
             {activePage === "generator"
-              ? "QACopilot searches uploaded project knowledge first, then sends matched context to Gemini for better test cases."
+              ? "QACopilot searches your saved knowledge chunks first, then sends matched context to Gemini for better test cases."
               : "Upload, parse, chunk, search, and manage project documents used by AI generation."}
           </p>
         </header>
@@ -213,13 +252,30 @@ function GeneratorPage() {
           </div>
           <p className="mt-5 text-sm leading-6 text-slate-600">
             Upload PRDs, regression sheets, user guides, and screenshots in the
-            Knowledge Base first. The generator searches those chunks before
-            asking Gemini to create test cases.
+            Knowledge Base first, then create or refresh chunks. The generator
+            reuses those saved chunks before asking Gemini to create test cases.
           </p>
+          <div className="mt-6 rounded-lg bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-900">
+              Predefined output columns
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {testCaseColumns.map((column) => (
+                <span
+                  key={column.key}
+                  className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200"
+                >
+                  {column.label}
+                </span>
+              ))}
+            </div>
+          </div>
         </section>
       </section>
 
-      {qaResult ? (
+      {isLoading ? (
+        <GeneratingLoader />
+      ) : qaResult ? (
         <section className="space-y-5">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.16em] text-cyan-700">
@@ -244,6 +300,37 @@ function GeneratorPage() {
         </section>
       )}
     </div>
+  );
+}
+
+function GeneratingLoader() {
+  return (
+    <section className="rounded-xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
+      <div className="flex flex-col items-center text-center">
+        <div className="relative flex size-14 items-center justify-center">
+          <div className="absolute inset-0 rounded-full border-4 border-cyan-100" />
+          <div className="absolute inset-0 animate-spin rounded-full border-4 border-cyan-600 border-t-transparent" />
+          <span className="text-sm font-semibold text-cyan-700">AI</span>
+        </div>
+        <h2 className="mt-5 text-xl font-semibold text-slate-950">
+          Generating test cases
+        </h2>
+        <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
+          Searching saved knowledge chunks and preparing a focused prompt for a
+          faster Gemini response.
+        </p>
+      </div>
+      <div className="mt-8 grid gap-3 md:grid-cols-3">
+        {["Reading chunks", "Matching context", "Creating QA table"].map(
+          (label) => (
+            <div key={label} className="rounded-lg bg-slate-50 p-4">
+              <div className="mb-3 h-2 w-16 animate-pulse rounded-full bg-cyan-200" />
+              <p className="text-sm font-semibold text-slate-700">{label}</p>
+            </div>
+          ),
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -278,16 +365,11 @@ function TestCaseTable({ testCases }: { testCases: TestCase[] }) {
   async function exportExcel() {
     const XLSX = await import("xlsx");
     const worksheet = XLSX.utils.json_to_sheet(buildExportRows(testCases), {
-      header: [...exportColumns],
+      header: testCaseColumns.map((column) => column.label),
     });
-    worksheet["!cols"] = [
-      { wch: 12 },
-      { wch: 18 },
-      { wch: 34 },
-      { wch: 48 },
-      { wch: 64 },
-      { wch: 48 },
-    ];
+    worksheet["!cols"] = testCaseColumns.map((column) => ({
+      wch: column.exportWidth,
+    }));
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "QACopilot");
@@ -304,7 +386,7 @@ function TestCaseTable({ testCases }: { testCases: TestCase[] }) {
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 32;
     const usableWidth = pageWidth - margin * 2;
-    const columnWidths = [58, 76, 124, 168, 210, 168];
+    const columnWidths = testCaseColumns.map((column) => column.pdfWidth);
     let y = 44;
 
     doc.setFont("helvetica", "bold");
@@ -318,8 +400,8 @@ function TestCaseTable({ testCases }: { testCases: TestCase[] }) {
     doc.rect(margin, y, usableWidth, 22, "F");
 
     let x = margin;
-    exportColumns.forEach((column, index) => {
-      doc.text(column, x + 4, y + 14, {
+    testCaseColumns.forEach((column, index) => {
+      doc.text(column.label, x + 4, y + 14, {
         maxWidth: columnWidths[index] - 8,
       });
       x += columnWidths[index];
@@ -330,14 +412,7 @@ function TestCaseTable({ testCases }: { testCases: TestCase[] }) {
     doc.setTextColor(30, 41, 59);
 
     testCases.forEach((testCase, rowIndex) => {
-      const rowValues = [
-        testCase.tcId,
-        testCase.category,
-        testCase.summary,
-        testCase.testDescription,
-        formatSteps(testCase.testSteps),
-        testCase.expected,
-      ];
+      const rowValues = testCaseColumns.map((column) => column.value(testCase));
       const splitCells = rowValues.map((value, index) =>
         doc.splitTextToSize(value, columnWidths[index] - 8),
       );
@@ -394,14 +469,14 @@ function TestCaseTable({ testCases }: { testCases: TestCase[] }) {
           <table className="min-w-[1100px] border-collapse text-left text-sm">
             <thead className="bg-slate-950 text-white">
               <tr>
-                <th className="w-24 px-4 py-3 font-semibold">TC_ID</th>
-                <th className="w-32 px-4 py-3 font-semibold">Category</th>
-                <th className="w-56 px-4 py-3 font-semibold">Summary</th>
-                <th className="w-72 px-4 py-3 font-semibold">
-                  Test description
-                </th>
-                <th className="w-80 px-4 py-3 font-semibold">Test Steps</th>
-                <th className="w-72 px-4 py-3 font-semibold">Expected</th>
+                {testCaseColumns.map((column) => (
+                  <th
+                    key={column.key}
+                    className={`${column.widthClass} px-4 py-3 font-semibold`}
+                  >
+                    {column.label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">

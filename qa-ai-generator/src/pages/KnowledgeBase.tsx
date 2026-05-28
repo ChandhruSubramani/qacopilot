@@ -25,11 +25,18 @@ export function KnowledgeBase() {
   const [sharePointUrl, setSharePointUrl] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [isChunking, setIsChunking] = useState(false);
+  const [chunkRefreshNeeded, setChunkRefreshNeeded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState("");
 
   const readyCount = files.filter((file) => file.status === "ready").length;
+  const needsChunkingCount = files.filter(
+    (file) => file.status === "needs_chunking",
+  ).length;
   const chunkCount = files.reduce((total, file) => total + (file.chunk_count ?? 0), 0);
+  const canRefreshChunks =
+    files.length > 0 && (chunkRefreshNeeded || needsChunkingCount > 0);
 
   const loadFiles = useCallback(async () => {
     setIsLoading(true);
@@ -72,7 +79,10 @@ export function KnowledgeBase() {
           setUploadProgress(Math.round((event.loaded / event.total) * 100));
         },
       });
-      setMessage("Knowledge files processed and saved.");
+      setChunkRefreshNeeded(true);
+      setMessage(
+        "Knowledge files parsed and saved. Click Create / Refresh chunks before generating test cases.",
+      );
       await loadFiles();
     } catch (error) {
       setMessage(
@@ -110,7 +120,10 @@ export function KnowledgeBase() {
     try {
       await api.post("/api/knowledge/sharepoint", { url: sharePointUrl.trim() });
       setSharePointUrl("");
-      setMessage("SharePoint document fetched and saved.");
+      setChunkRefreshNeeded(true);
+      setMessage(
+        "SharePoint document parsed and saved. Click Create / Refresh chunks before generating test cases.",
+      );
       await loadFiles();
     } catch (error) {
       setMessage(
@@ -126,7 +139,28 @@ export function KnowledgeBase() {
 
   async function deleteFile(id: string) {
     await api.delete(`/api/knowledge/files/${id}`);
+    setChunkRefreshNeeded(true);
     await loadFiles();
+  }
+
+  async function refreshChunks() {
+    setIsChunking(true);
+    setMessage("");
+
+    try {
+      const response = await api.post("/api/knowledge/chunks/refresh");
+      setChunkRefreshNeeded(false);
+      setMessage(
+        `Chunks refreshed for ${response.data.fileCount} file(s). Stored ${response.data.chunkCount} reusable chunk(s).`,
+      );
+      await loadFiles();
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Unable to create chunks.",
+      );
+    } finally {
+      setIsChunking(false);
+    }
   }
 
   const fileTypeBreakdown = useMemo(() => {
@@ -144,13 +178,43 @@ export function KnowledgeBase() {
         <MetricCard label="Stored chunks" value={chunkCount} />
       </div>
 
+      <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Reusable knowledge chunks</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              Uploads only parse and save document text. Create or refresh
+              chunks when documents change, then test generation reuses those
+              saved chunks.
+            </p>
+          </div>
+          <button
+            className="rounded-lg bg-cyan-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+            disabled={!canRefreshChunks || isChunking}
+            onClick={refreshChunks}
+            type="button"
+          >
+            {isChunking ? "Creating chunks..." : "Create / Refresh chunks"}
+          </button>
+        </div>
+        {canRefreshChunks ? (
+          <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+            Documents changed. Refresh chunks before generating new test cases.
+          </p>
+        ) : (
+          <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+            Knowledge chunks are ready to reuse during test generation.
+          </p>
+        )}
+      </section>
+
       <div className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
         <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <div className="mb-4">
             <h2 className="text-lg font-semibold">Upload knowledge</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Add PDFs, DOCX, TXT, CSV, Excel, and image files. Text is parsed,
-              chunked, and stored for AI search.
+              Add PDFs, DOCX, TXT, CSV, Excel, and image files. Text is parsed
+              first; reusable chunks are created only when you click refresh.
             </p>
           </div>
 

@@ -1,11 +1,22 @@
-const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
+const GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.5-flash"];
+const MAX_CONTEXT_CHARS_PER_CHUNK = 700;
+
+function trimChunkText(text) {
+  const normalized = String(text ?? "").replace(/\s+/g, " ").trim();
+
+  if (normalized.length <= MAX_CONTEXT_CHARS_PER_CHUNK) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, MAX_CONTEXT_CHARS_PER_CHUNK)}...`;
+}
 
 export function buildQaPrompt(requirement, contextChunks = []) {
   const context = contextChunks.length
     ? contextChunks
         .map(
           (chunk, index) =>
-            `Context ${index + 1} from ${chunk.file_name}:\n${chunk.chunk_text}`,
+            `Context ${index + 1} from ${chunk.file_name}:\n${trimChunkText(chunk.chunk_text)}`,
         )
         .join("\n\n---\n\n")
     : "No uploaded knowledge context matched this requirement.";
@@ -33,6 +44,13 @@ Return only valid JSON with this exact shape:
     }
   ]
 }
+The predefined output table columns are fixed and must be populated for every test case:
+- TC_ID
+- Category
+- Summary
+- Test description
+- Test Steps
+- Expected
 Generate professional QA test cases in table-ready format.
 Include all categories:
 - Positive scenarios
@@ -67,7 +85,8 @@ export async function generateWithGemini({ apiKey, prompt }) {
           ],
           generationConfig: {
             responseMimeType: "application/json",
-            temperature: 0.2,
+            temperature: 0.1,
+            maxOutputTokens: 4096,
           },
         }),
       },

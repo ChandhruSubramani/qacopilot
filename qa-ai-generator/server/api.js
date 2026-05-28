@@ -122,6 +122,12 @@ export function createApiMiddleware(env) {
         return;
       }
 
+      if (url.pathname === "/api/knowledge/chunks/refresh" && req.method === "POST") {
+        const result = await knowledge.refreshChunks();
+        sendJson(res, 200, result);
+        return;
+      }
+
       if (url.pathname === "/api/generate-test-cases" && req.method === "POST") {
         if (!env.GEMINI_API_KEY) {
           sendJson(res, 500, { error: "Missing GEMINI_API_KEY in .env.local" });
@@ -138,7 +144,7 @@ export function createApiMiddleware(env) {
           return;
         }
 
-        const chunks = await knowledge.searchChunks(requirement, 8);
+        const chunks = await knowledge.searchChunks(requirement, 4);
         const result = await generateWithGemini({
           apiKey: env.GEMINI_API_KEY,
           prompt: buildQaPrompt(requirement, chunks),
